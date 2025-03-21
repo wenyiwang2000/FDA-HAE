@@ -9,25 +9,15 @@ FDA_HAE_algorithm <- function(R=2,L=2,nm=7,p=3,iters=1000,data1,tols=1e-200,
   
   mt1 <- mgcv::gam(y~s(time,bs='ps', m=c(2,2), k=nm+3), drop.intercept=F,method="REML",data=data1, family=poisson)
   
-  #BG <- as.matrix(spline.des(knots=construct.knots(seq(0,1,0.00001),7,knots.option="equally-spaced",p), 
-  #                           x=seq(0,1,0.00001), outer.ok=TRUE, sparse=TRUE)$design)
   sm <- smoothCon(s(time, bs = "ps", m=c(2,2), k=nm+3), data = data1)[[1]]
   data1t <- data.frame(subj=rep(1,100001),time=seq(0,1,0.00001),l=c(0.9999999,rep(1,100000)),y=rep(1,100001))
   mt2 <- mgcv::gam(y~s(time,bs='ps',by=l, m=c(2,2), k=nm+3), drop.intercept=T,method="REML",data=data1t, family=poisson)
   BG <- predict.gam(mt2,type="lpmatrix")
-  #BG <- as.matrix(spline.des(knots=sm$knots, 
-  #                           x=seq(0,1,0.00001), outer.ok=TRUE, sparse=TRUE)$design)
   
   G <- crossprod(BG) / nrow(BG)
   eig_G <- eigen(G, symmetric = T)
   G_half <- eig_G$vectors %*% diag(sqrt(eig_G$values)) %*% t(eig_G$vectors)
   G_invhalf <- solve(G_half)
-  
-  
-  #tB <- as.matrix(spline.des(knots=construct.knots(seq(0,1,0.01),7,knots.option="equally-spaced",p), 
-  #                           x=seq(0,1,0.01), outer.ok=TRUE, sparse=TRUE)$design)
-  #tB <- as.matrix(spline.des(knots=sm$knots, 
-  #                           x=seq(0,1,0.01), outer.ok=TRUE, sparse=TRUE)$design)
   
   data1tt <- data.frame(subj=rep(1,101),time=seq(0,1,0.01),l=c(0.9999999,rep(1,100)),y=rep(1,101))
   mt3 <- mgcv::gam(y~s(time,bs='ps',by=l, m=c(2,2), k=nm+3), drop.intercept=T,method="REML",data=data1tt, family=poisson)
@@ -112,12 +102,6 @@ FDA_HAE_algorithm <- function(R=2,L=2,nm=7,p=3,iters=1000,data1,tols=1e-200,
       eta0[index] <- tBmatrix_theta[index,] %*% Mtnew[s,p,]
     }
   }
-  
-  #################################################svd_0 <- svd(M)
-  #################################################U <- matrix(svd_0$u[,1:L1],ncol=L1)
-  #################################################Gamma <- diag(svd_0$d[1:L1],nrow=L1,ncol=L1) %*% t(svd_0$v[,1:L1])
-  #################################################psi <- tBmatrix_theta %*% U
-  
   
   
   #lambda
@@ -448,7 +432,7 @@ FDA_HAE_algorithm <- function(R=2,L=2,nm=7,p=3,iters=1000,data1,tols=1e-200,
       sum <- sum + diag(Exi2_list[[i]])
     }
     lambda <- sum/n
-    #lambda <- sapply(lambda,function(x){min(x,10)})
+    
     
     #orthonormal
     temp <- tcrossprod(theta %*% diag(lambda,L,L), theta)
@@ -520,19 +504,13 @@ FDA_HAE_algorithm <- function(R=2,L=2,nm=7,p=3,iters=1000,data1,tols=1e-200,
         mi <- length(data1$y[index])
         xii <- rmvn(N, rep(0,L), diag(lambda,L,L)) #N*L
         vari <- xii %*% t(matrix(phi[index,],ncol=L)) #N*mi
-        #etai <- matrix(rep(eta0[index], N), nrow=N, byrow=T) + vari + log(data1$Nij[index])  #N*mi
         etai <- matrix(rep(eta0[index], N), nrow=N, byrow=T) + vari + matrix(rep(log(data1$Nij[index]),N),nrow=N,byrow=TRUE) #N*mi
         mui <- exp(etai) #N*mi
-        #fi <- matrix(mapply(dpois,matrix(rep(data1$y[index], N), nrow=N, byrow=T),mui),nrow=N,byrow=F)#N*mi
         ai <- -rowSums(mui) + etai %*% matrix(data1$y[index], ncol=1, byrow=T)  #N*1
         max_ai <- max(ai)
         log_fi <- max_ai + log(sum(exp(ai-max_ai)))
-        #fprodi <- apply(fi, 1, prod)#N*1
-        #out <- MC_Expec_l(eta0[index],Phi[index,],lambda,2000,data1$y[index])
         Out <- cbind(Out, log_fi)
       }
-      #flike <- mean(apply(Out, 1, prod))
-      #log_like <- log(flike)
       ll[iter] <- sum(Out)
       loss[iter,1] <- abs(ll[iter]-ll[iter-1]) / (abs(ll[iter-1]) + tol0)
       
@@ -568,12 +546,8 @@ FDA_HAE_algorithm <- function(R=2,L=2,nm=7,p=3,iters=1000,data1,tols=1e-200,
       lambda_abs_d[iter] <- lambda_abs
     }
     
-    #if(iter > 20){
-    #  flag <- as.numeric(loss[iter,2] < tol1)+ as.numeric(loss[iter,3] < tol2)+ as.numeric(loss[iter,1] < tol3)
-    #}else{
-    #  flag <- as.numeric(loss[iter,2] < tol1)+ as.numeric(loss[iter,3] < tol2) 
-    #}
-    flag <- as.numeric(loss[iter,2] < tol1)+ as.numeric(loss[iter,3] < tol2) 
+    
+    flag <- as.numeric(loss[iter,2] < tol1)+ as.numeric(loss[iter,3] < tol2) + as.numeric(loss[iter,1] < tol3)
     print("loss")
     print(loss[iter,])
     
@@ -595,15 +569,11 @@ FDA_HAE_algorithm <- function(R=2,L=2,nm=7,p=3,iters=1000,data1,tols=1e-200,
       mi <- length(data1$y[index])
       xii <- rmvn(N, rep(0,L), diag(lambda,L,L)) #N*L
       vari <- xii %*% t(matrix(phi[index,],ncol=L)) #N*mi
-      #etai <- matrix(rep(eta0[index], N), nrow=N, byrow=T) + vari + log(data1$Nij[index]) #N*mi
       etai <- matrix(rep(eta0[index], N), nrow=N, byrow=T) + vari + matrix(rep(log(data1$Nij[index]),N),nrow=N,byrow=TRUE) #N*mi
-      mui <- exp(etai) #N*mi
-      #fi <- matrix(mapply(dpois,matrix(rep(data1$y[index], N), nrow=N, byrow=T),mui),nrow=N,byrow=F)#N*mi
+      mui <- exp(etai) #N*mi 
       ai <- -rowSums(mui) + etai %*% matrix(data1$y[index], ncol=1, byrow=T)  #N*1
       max_ai <- max(ai)
       log_fi <- max_ai + log(sum(exp(ai-max_ai)))
-      #fprodi <- apply(fi, 1, prod)#N*1
-      #out <- MC_Expec_l(eta0[index],Phi[index,],lambda,2000,data1$y[index])
       Out <- cbind(Out, log_fi)
     }
     log_like_v[i_like] <- sum(Out)
